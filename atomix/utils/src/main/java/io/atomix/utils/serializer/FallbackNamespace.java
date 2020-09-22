@@ -32,18 +32,18 @@ public class FallbackNamespace implements Namespace {
       "Magic byte was encountered, signalling newer version of serializer, but version {} is unrecognized. Using FieldSerializer as fallback";
   private static final byte MAGIC_BYTE = (byte) 0xFF;
   private static final byte VERSION_BYTE = 0x01;
-  private final NamespaceImpl fallback;
-  private final NamespaceImpl namespace;
+  private final NamespaceImpl legacy;
+  private final NamespaceImpl compatible;
 
-  FallbackNamespace(final NamespaceImpl fallback, final NamespaceImpl namespace) {
-    this.fallback = fallback;
-    this.namespace = namespace;
+  FallbackNamespace(final NamespaceImpl legacy, final NamespaceImpl compatible) {
+    this.legacy = legacy;
+    this.compatible = compatible;
   }
 
   public FallbackNamespace(final NamespaceImpl.Builder builder) {
     final Builder copy = builder.copy();
-    fallback = builder.build();
-    namespace = copy.name(copy.getName() + "-compatible").setCompatible(true).build();
+    legacy = builder.build();
+    compatible = copy.name(copy.getName() + "-compatible").setCompatible(true).build();
   }
 
   /**
@@ -55,7 +55,7 @@ public class FallbackNamespace implements Namespace {
    * @return serialized bytes
    */
   public byte[] serialize(final Object obj) {
-    return fallback.serialize(obj);
+    return legacy.serialize(obj);
   }
 
   /**
@@ -65,7 +65,7 @@ public class FallbackNamespace implements Namespace {
    * @param buffer to write to
    */
   public void serialize(final Object obj, final ByteBuffer buffer) {
-    fallback.serialize(obj, buffer);
+    legacy.serialize(obj, buffer);
   }
 
   /**
@@ -80,12 +80,12 @@ public class FallbackNamespace implements Namespace {
     final byte versionByte = bytes[0];
 
     if (magicByte != MAGIC_BYTE) {
-      return fallback.deserialize(bytes);
+      return legacy.deserialize(bytes);
     }
 
     if (versionByte == VERSION_BYTE) {
       try {
-        return namespace.deserialize(bytes, 2);
+        return compatible.deserialize(bytes, 2);
       } catch (final Exception e) {
         LOG.debug(DESERIALIZE_ERROR, e);
       }
@@ -93,7 +93,7 @@ public class FallbackNamespace implements Namespace {
       LOG.debug(UNKNOWN_VERSION_ERROR, (int) versionByte);
     }
 
-    return fallback.deserialize(bytes);
+    return legacy.deserialize(bytes);
   }
 
   /**
@@ -110,13 +110,13 @@ public class FallbackNamespace implements Namespace {
     final byte magicByte = buffer.get(position + 1);
 
     if (magicByte != MAGIC_BYTE) {
-      return fallback.deserialize(buffer);
+      return legacy.deserialize(buffer);
     }
 
     if (version == VERSION_BYTE) {
       try {
         buffer.position(position + 2);
-        return namespace.deserialize(buffer);
+        return compatible.deserialize(buffer);
       } catch (final Exception e) {
         LOG.debug(DESERIALIZE_ERROR, e);
       }
@@ -125,11 +125,11 @@ public class FallbackNamespace implements Namespace {
     }
 
     buffer.position(position);
-    return fallback.deserialize(buffer);
+    return legacy.deserialize(buffer);
   }
 
   @Override
   public ImmutableList<RegistrationBlock> getRegisteredBlocks() {
-    return namespace.getRegisteredBlocks();
+    return compatible.getRegisteredBlocks();
   }
 }
